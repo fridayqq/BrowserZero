@@ -1,21 +1,21 @@
-# Spacelink MVP Implementation Plan
+# Browser Zero MVP Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A macOS default-browser app that opens each link in a browser *or a space/profile inside it*, via rules (URL + source app), learning, a type-to-filter picker, and link cleaning.
 
-**Architecture:** SwiftPM package. `SpacelinkCore` = pure, unit-tested logic (models, cleaning, rules, ranking, discovery parsers, storage, script/URL builders). `Spacelink` = executable with AppKit/SwiftUI glue (Apple Event handler, opener, picker panel, settings). `scripts/build-app.sh` assembles and ad-hoc signs `build/Spacelink.app`.
+**Architecture:** SwiftPM package. `BrowserZeroCore` = pure, unit-tested logic (models, cleaning, rules, ranking, discovery parsers, storage, script/URL builders). `BrowserZero` = executable with AppKit/SwiftUI glue (Apple Event handler, opener, picker panel, settings). `scripts/build-app.sh` assembles and ad-hoc signs `build/BrowserZero.app`.
 
 **Tech Stack:** Swift 6 toolchain (language mode 5 for the app target to avoid strict-concurrency churn), SwiftUI + AppKit, Compression, Swift Testing.
 
-**Spec:** `docs/superpowers/specs/2026-10-31-spacelink-design.md` — read it before your task.
+**Spec:** `docs/superpowers/specs/2026-10-31-browser-zero-design.md` — read it before your task.
 
 ## Global Constraints
 
 - No Xcode. Every build/test command is prefixed with `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`.
 - Tests use Swift Testing (`import Testing`, `@Test`, `#expect`). XCTest does not build here.
 - Do not use `#Preview`. Do not use regex literals (`/…/`); use `NSRegularExpression` or `Regex(String)`.
-- Platform: `.macOS(.v14)`. Bundle id `dev.fridayqq.Spacelink`. App is `LSUIElement` (menu bar only).
+- Platform: `.macOS(.v14)`. Bundle id `dev.fridayqq.BrowserZero`. User-visible name "Browser Zero" (`CFBundleName`/`CFBundleDisplayName`, menus, window titles); bundle file and executable are `BrowserZero`. App is `LSUIElement` (menu bar only).
 - Info.plist must contain `NSAppleEventsUsageDescription`, URL types `http`, `https`, and `CFBundleDocumentTypes` for `public.html` (copy shape from `~/code/Browserino/Browserino/Info.plist`).
 - Never lose a link: every open failure falls back to a plain open in the target's browser.
 - Reference implementation for discovery/opening (verified on this machine): `~/code/Browserino/Browserino/Models/BrowserProfile.swift`. Port logic from it; don't copy its UI.
@@ -37,7 +37,7 @@
 Package.swift
 scripts/build-app.sh
 Support/Info.plist
-Sources/SpacelinkCore/
+Sources/BrowserZeroCore/
   Target.swift          Target, Profile, ProfileKind, BrowserApp
   LinkCleaner.swift
   Rule.swift            Rule, RuleMatcher
@@ -50,12 +50,12 @@ Sources/SpacelinkCore/
   Discovery/ChromiumDiscovery.swift
   Discovery/TargetDiscovery.swift
   Store.swift           Config, Store (JSON persistence)
-Sources/Spacelink/
+Sources/BrowserZero/
   main.swift, AppDelegate.swift, AppState.swift
   Browsers.swift, SourceApp.swift, Opener.swift, Router.swift
   Picker/PickerPanel.swift, Picker/PickerModel.swift, Picker/PickerView.swift
   Settings/SettingsWindow.swift, Settings/GeneralTab.swift, Settings/TargetsTab.swift, Settings/RulesTab.swift
-Tests/SpacelinkCoreTests/*.swift (+ Fixtures/ via `resources: [.copy("Fixtures")]`)
+Tests/BrowserZeroCoreTests/*.swift (+ Fixtures/ via `resources: [.copy("Fixtures")]`)
 ```
 
 ---
@@ -64,8 +64,8 @@ Tests/SpacelinkCoreTests/*.swift (+ Fixtures/ via `resources: [.copy("Fixtures")
 
 **Files:**
 - Create: `Package.swift`, `scripts/build-app.sh`, `Support/Info.plist`, `.gitignore` (`.build/`, `build/`)
-- Create: `Sources/SpacelinkCore/Target.swift`, `Sources/Spacelink/main.swift`, `Sources/Spacelink/AppDelegate.swift`
-- Test: `Tests/SpacelinkCoreTests/TargetTests.swift`
+- Create: `Sources/BrowserZeroCore/Target.swift`, `Sources/BrowserZero/main.swift`, `Sources/BrowserZero/AppDelegate.swift`
+- Test: `Tests/BrowserZeroCoreTests/TargetTests.swift`
 
 **Interfaces:**
 - Produces:
@@ -78,7 +78,7 @@ Tests/SpacelinkCoreTests/*.swift (+ Fixtures/ via `resources: [.copy("Fixtures")
     `displayName: String` = `"Arc"` or `"Arc · Dev"` (separator `" · "`).
   - All public structs get public memberwise inits.
 
-- [ ] **Step 1: Write `Package.swift`** — tools 6.0; products: executable `Spacelink`; targets `SpacelinkCore` (library), `Spacelink` (executable, depends on core, `swiftSettings: [.swiftLanguageMode(.v5)]`), test target `SpacelinkCoreTests` with `resources: [.copy("Fixtures")]` (create `Tests/SpacelinkCoreTests/Fixtures/.keep`).
+- [ ] **Step 1: Write `Package.swift`** — tools 6.0; products: executable `BrowserZero`; targets `BrowserZeroCore` (library), `BrowserZero` (executable, depends on core, `swiftSettings: [.swiftLanguageMode(.v5)]`), test target `BrowserZeroCoreTests` with `resources: [.copy("Fixtures")]` (create `Tests/BrowserZeroCoreTests/Fixtures/.keep`).
 - [ ] **Step 2: Write failing tests** in `TargetTests.swift`:
   - `targetIdForPlainBrowser`: `Target(browser: arc, profile: nil).id == "company.thebrowser.Browser|browser|"`
   - `targetIdForProfile`: with `Profile(kind: .arcSpace, name: "Dev", value: "Dev", icon: nil)` → `"company.thebrowser.Browser|arcSpace|Dev"`, `displayName == "Arc · Dev"`
@@ -86,15 +86,15 @@ Tests/SpacelinkCoreTests/*.swift (+ Fixtures/ via `resources: [.copy("Fixtures")
 - [ ] **Step 3: Run** `SDKROOT=… swift test` → FAIL (types missing).
 - [ ] **Step 4: Implement `Target.swift`.**
 - [ ] **Step 5: Minimal app:** `main.swift` creates `NSApplication`, sets `AppDelegate`, `.accessory` policy, runs. `AppDelegate` adds a status item (SF Symbol `"arrow.triangle.branch"`) with menu: "Settings…" (no-op for now), "Quit".
-- [ ] **Step 6: `scripts/build-app.sh`** — `swift build -c release` with SDKROOT; create `build/Spacelink.app/Contents/{MacOS,Resources}`; copy `.build/release/Spacelink`; copy `Support/Info.plist` (it already contains `CFBundleIdentifier`, `CFBundleExecutable=Spacelink`, `CFBundleName`, `CFBundlePackageType=APPL`, `CFBundleShortVersionString=0.1.0`, `CFBundleVersion=1`, `LSMinimumSystemVersion=14.0`, `LSUIElement=true`, `NSAppleEventsUsageDescription`, URL types, document types); `codesign --force --deep --sign - build/Spacelink.app`. `set -euo pipefail`.
-- [ ] **Step 7: Verify:** `swift test` PASS (3 tests); `scripts/build-app.sh` prints no errors; `codesign -v build/Spacelink.app` exits 0; `plutil -lint Support/Info.plist` OK.
-- [ ] **Step 8: Commit** `feat: scaffold Spacelink package and core models`.
+- [ ] **Step 6: `scripts/build-app.sh`** — `swift build -c release` with SDKROOT; create `build/BrowserZero.app/Contents/{MacOS,Resources}`; copy `.build/release/BrowserZero`; copy `Support/Info.plist` (it already contains `CFBundleIdentifier`, `CFBundleExecutable=BrowserZero`, `CFBundleName`, `CFBundlePackageType=APPL`, `CFBundleShortVersionString=0.1.0`, `CFBundleVersion=1`, `LSMinimumSystemVersion=14.0`, `LSUIElement=true`, `NSAppleEventsUsageDescription`, URL types, document types); `codesign --force --deep --sign - build/BrowserZero.app`. `set -euo pipefail`.
+- [ ] **Step 7: Verify:** `swift test` PASS (3 tests); `scripts/build-app.sh` prints no errors; `codesign -v build/BrowserZero.app` exits 0; `plutil -lint Support/Info.plist` OK.
+- [ ] **Step 8: Commit** `feat: scaffold BrowserZero package and core models`.
 
 ---
 
 ### Task 2: LinkCleaner
 
-**Files:** Create `Sources/SpacelinkCore/LinkCleaner.swift`; Test `Tests/SpacelinkCoreTests/LinkCleanerTests.swift`
+**Files:** Create `Sources/BrowserZeroCore/LinkCleaner.swift`; Test `Tests/BrowserZeroCoreTests/LinkCleanerTests.swift`
 
 **Interfaces:**
 - Produces: `public enum LinkCleaner { public static func clean(_ url: URL) -> URL }`
@@ -125,7 +125,7 @@ Then strip params: names starting with `utm_`, and `fbclid`, `gclid`, `yclid`, `
 
 ### Task 3: Rules
 
-**Files:** Create `Sources/SpacelinkCore/Rule.swift`; Test `Tests/SpacelinkCoreTests/RuleTests.swift`
+**Files:** Create `Sources/BrowserZeroCore/Rule.swift`; Test `Tests/BrowserZeroCoreTests/RuleTests.swift`
 
 **Interfaces:**
 - Produces:
@@ -142,7 +142,7 @@ Semantics: glob is matched against the host only, case-insensitive; `*.x.com` ma
 
 ### Task 4: Fuzzy filter and History (ranking + suggestion)
 
-**Files:** Create `Sources/SpacelinkCore/Fuzzy.swift`, `Sources/SpacelinkCore/History.swift`; Tests `FuzzyTests.swift`, `HistoryTests.swift`
+**Files:** Create `Sources/BrowserZeroCore/Fuzzy.swift`, `Sources/BrowserZeroCore/History.swift`; Tests `FuzzyTests.swift`, `HistoryTests.swift`
 
 **Interfaces:**
 - Produces:
@@ -164,8 +164,8 @@ Suggestion: returns targetId if the last 3 choices for `host` (most recent first
 ### Task 5: Discovery parsers and script/URL builders
 
 **Files:**
-- Create: `Sources/SpacelinkCore/Discovery/{MozLz4,ArcDiscovery,ZenDiscovery,ChromiumDiscovery}.swift`, `Sources/SpacelinkCore/ScriptBuilder.swift`
-- Create fixtures in `Tests/SpacelinkCoreTests/Fixtures/`: `arc-sidebar.json`, `zen-sessions.json` (plain JSON; test compresses it), `zen-containers.json`, `zen-profiles.ini`, `zen-extensions.json`, `zen-prefs.js`, `chrome-local-state.json` — small hand-written files mirroring the shapes in the spec (Arc: `{"sidebar":{"containers":[{"global":{}}, {"spaces":["id1",{"id":"id1","title":"Personal"},"id2",{"id":"id2","title":"Dev"},{"id":"id3","title":"Dev"}]}]}}`; Zen spaces with `containerTabId` 0 and 2; containers ids 1–4 without names plus id 6 `"name":"Clients"`).
+- Create: `Sources/BrowserZeroCore/Discovery/{MozLz4,ArcDiscovery,ZenDiscovery,ChromiumDiscovery}.swift`, `Sources/BrowserZeroCore/ScriptBuilder.swift`
+- Create fixtures in `Tests/BrowserZeroCoreTests/Fixtures/`: `arc-sidebar.json`, `zen-sessions.json` (plain JSON; test compresses it), `zen-containers.json`, `zen-profiles.ini`, `zen-extensions.json`, `zen-prefs.js`, `chrome-local-state.json` — small hand-written files mirroring the shapes in the spec (Arc: `{"sidebar":{"containers":[{"global":{}}, {"spaces":["id1",{"id":"id1","title":"Personal"},"id2",{"id":"id2","title":"Dev"},{"id":"id3","title":"Dev"}]}]}}`; Zen spaces with `containerTabId` 0 and 2; containers ids 1–4 without names plus id 6 `"name":"Clients"`).
 - Test: `DiscoveryTests.swift`, `ScriptBuilderTests.swift`
 
 **Interfaces:**
@@ -192,7 +192,7 @@ Suggestion: returns targetId if the last 3 choices for `host` (most recent first
 
 ### Task 6: TargetDiscovery and Store
 
-**Files:** Create `Sources/SpacelinkCore/Discovery/TargetDiscovery.swift`, `Sources/SpacelinkCore/Store.swift`; Tests `TargetDiscoveryTests.swift`, `StoreTests.swift`
+**Files:** Create `Sources/BrowserZeroCore/Discovery/TargetDiscovery.swift`, `Sources/BrowserZeroCore/Store.swift`; Tests `TargetDiscoveryTests.swift`, `StoreTests.swift`
 
 **Interfaces:**
 - Consumes: Task 1 models, Task 5 parsers, Task 3 `Rule`, Task 4 `History`.
@@ -200,7 +200,7 @@ Suggestion: returns targetId if the last 3 choices for `host` (most recent first
   - `public struct ZenSetup: Codable, Hashable, Sendable { addonInstalled: Bool; forceContainerEnabled: Bool; profileFound: Bool }`
   - `public struct TargetDiscovery { public init(appSupport: URL); func discover(browsers: [BrowserApp], previous: [Target]) -> [Target]; func zenSetup() -> ZenSetup; func zenProfileDirectory() -> URL? }` — per browser: one plain `Target` + one per profile (including non-selectable ones). If a browser's source exists but can't be read/parsed (`nil` from parser or read error), reuse `previous` profile targets for that bundleId. Paths: Arc `Arc/StorableSidebar.json`; Zen `zen/profiles.ini` → dir → `zen-sessions.jsonlz4`, `containers.json`, `extensions.json`, `prefs.js`; Chromium `<dataDirs[id]>/Local State`.
   - `public struct Config: Codable, Equatable, Sendable { rules: [Rule] = []; hiddenTargets: Set<String> = []; hiddenBrowsers: Set<String> = []; cleanLinks: Bool = true; dismissedSuggestions: Set<String> = [] }` — decoding must tolerate missing keys (custom `init(from:)` with `decodeIfPresent`).
-  - `public final class Store { public init(directory: URL); func loadConfig() -> Config; func save(_: Config); func loadHistory() -> History; func save(_: History); func loadTargets() -> [Target]; func saveTargets(_: [Target]) }` — files `config.json`, `history.json`, `targets-cache.json`; creates directory; atomic writes; missing/corrupt file → default value. Default directory used by the app: `~/Library/Application Support/Spacelink/`.
+  - `public final class Store { public init(directory: URL); func loadConfig() -> Config; func save(_: Config); func loadHistory() -> History; func save(_: History); func loadTargets() -> [Target]; func saveTargets(_: [Target]) }` — files `config.json`, `history.json`, `targets-cache.json`; creates directory; atomic writes; missing/corrupt file → default value. Default directory used by the app: `~/Library/Application Support/BrowserZero/`.
 
 - [ ] **Step 1: Failing tests** (temp dir as fake App Support, copy Task 5 fixtures into the right paths, mozLz4-encode sessions):
   - `discoversArcZenChromium` → contains ids `company.thebrowser.Browser|arcSpace|Dev`, `app.zen-browser.zen|zenWorkspace|SL` (not selectable), plain targets for each browser
@@ -217,10 +217,10 @@ Suggestion: returns targetId if the last 3 choices for `host` (most recent first
 
 ### Task 7: App core — state, source app, opener, router, URL events
 
-**Files:** Create `Sources/Spacelink/{AppState,Browsers,SourceApp,Opener,Router}.swift`; Modify `AppDelegate.swift`
+**Files:** Create `Sources/BrowserZero/{AppState,Browsers,SourceApp,Opener,Router}.swift`; Modify `AppDelegate.swift`
 
 **Interfaces:**
-- Consumes: all of SpacelinkCore.
+- Consumes: all of BrowserZeroCore.
 - Produces:
   - `final class AppState: ObservableObject` (main actor) — `@Published config: Config`, `@Published targets: [Target]`, `@Published history: History`, `@Published zenSetup: ZenSetup`; `let store: Store`; `func refreshTargets()` (background discovery → main, saves cache); `func visibleTargets() -> [Target]` (selectable, not in hiddenTargets, browser not in hiddenBrowsers); `func saveConfig()`; `func record(host:source:targetId:)`. Loads cached targets at init, then refreshes.
   - `enum Browsers { static func installed() -> [BrowserApp] }` — `NSWorkspace.urlsForApplications(toOpen: https:)`, excluding own bundle id and `com.googlecode.iterm2`, `com.openai.chat`, `com.openai.codex`, `com.apple.Terminal`; dedupe by bundle id (prefer `/Applications`); always include Safari if found.
@@ -230,14 +230,14 @@ Suggestion: returns targetId if the last 3 choices for `host` (most recent first
   - AppDelegate: in `applicationWillFinishLaunching`, `NSAppleEventManager.shared().setEventHandler(_, andSelector:, forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))`; handler reads `paramDescriptor(forKeyword: keyDirectObject)?.stringValue`, sender PID from `event.attributeDescriptor(forKeyword: AEKeyword(keySenderPIDAttr))?.int32Value`, `forcePicker = NSEvent.modifierFlags.contains(.option)`. Also `application(_:open:)` for file URLs (html files) → router with source nil. For this task, `showPicker` temporarily opens in the first visible plain target.
 
 - [ ] **Step 1: Build** `SDKROOT=… swift build` → no errors; `swift test` still PASS.
-- [ ] **Step 2: Manual check:** `scripts/build-app.sh`, then `open -a build/Spacelink.app "https://example.com/?utm_source=x"` → page opens in first browser without `utm_source`. Temporarily add a rule in `~/Library/Application Support/Spacelink/config.json` (`pattern "example.com"`, target `company.thebrowser.Browser|arcSpace|A`), relaunch, repeat → opens in Arc space A (approve Automation prompt). Remove the rule.
+- [ ] **Step 2: Manual check:** `scripts/build-app.sh`, then `open -a build/BrowserZero.app "https://example.com/?utm_source=x"` → page opens in first browser without `utm_source`. Temporarily add a rule in `~/Library/Application Support/BrowserZero/config.json` (`pattern "example.com"`, target `company.thebrowser.Browser|arcSpace|A`), relaunch, repeat → opens in Arc space A (approve Automation prompt). Remove the rule.
 - [ ] **Step 3: Commit** `feat: URL routing, opener and source app detection`.
 
 ---
 
 ### Task 8: Picker panel
 
-**Files:** Create `Sources/Spacelink/Picker/{PickerPanel,PickerModel,PickerView}.swift`; Modify `AppDelegate.swift` (wire `showPicker`)
+**Files:** Create `Sources/BrowserZero/Picker/{PickerPanel,PickerModel,PickerView}.swift`; Modify `AppDelegate.swift` (wire `showPicker`)
 
 **Interfaces:**
 - Consumes: `AppState`, `Opener`, `History.rank`, `History.suggestion`, `Fuzzy.score`.
@@ -248,14 +248,14 @@ Suggestion: returns targetId if the last 3 choices for `host` (most recent first
   - Keys: ↑/↓ move selection (clamped), Enter opens selected (no-op if no rows), Esc closes, bare 1–9 open row when query empty, ⌘1–9 always. Typing resets selection to 0.
 
 - [ ] **Step 1: Build** passes; tests still pass.
-- [ ] **Step 2: Manual check:** build app, `open -a build/Spacelink.app https://github.com` → panel at cursor; type `de` → only Dev rows; Enter opens; Esc closes; `1` opens first row. Choose the same target 3× for github.com → 4th time banner appears; ⌘S creates rule; 5th time opens without picker. Hold Option while running → picker shows despite rule.
+- [ ] **Step 2: Manual check:** build app, `open -a build/BrowserZero.app https://github.com` → panel at cursor; type `de` → only Dev rows; Enter opens; Esc closes; `1` opens first row. Choose the same target 3× for github.com → 4th time banner appears; ⌘S creates rule; 5th time opens without picker. Hold Option while running → picker shows despite rule.
 - [ ] **Step 3: Commit** `feat: picker panel`.
 
 ---
 
 ### Task 9: Settings window
 
-**Files:** Create `Sources/Spacelink/Settings/{SettingsWindow,GeneralTab,TargetsTab,RulesTab}.swift`; Modify `AppDelegate.swift` (menu "Settings…" opens window; reopen app opens it too)
+**Files:** Create `Sources/BrowserZero/Settings/{SettingsWindow,GeneralTab,TargetsTab,RulesTab}.swift`; Modify `AppDelegate.swift` (menu "Settings…" opens window; reopen app opens it too)
 
 **Interfaces:**
 - Consumes: `AppState`, `RuleMatcher`, `LinkCleaner`.
@@ -275,6 +275,6 @@ Suggestion: returns targetId if the last 3 choices for `host` (most recent first
 **Files:** Create `README.md` (what it is, build: `scripts/build-app.sh`, install: copy to `/Applications`, Zen setup steps, Chrome FDA note).
 
 - [ ] **Step 1:** `swift test` all PASS; `scripts/build-app.sh` OK.
-- [ ] **Step 2:** Copy `build/Spacelink.app` to `/Applications`, `lsregister -f`, launch. Do **not** change the default browser or remove Browserino — leave switching to the user.
-- [ ] **Step 3:** `open -a /Applications/Spacelink.app <url>` checks: SafeLinks URL gets unwrapped; Arc space opens; Dia profile opens.
+- [ ] **Step 2:** Copy `build/BrowserZero.app` to `/Applications`, `lsregister -f`, launch. Do **not** change the default browser or remove Browserino — leave switching to the user.
+- [ ] **Step 3:** `open -a /Applications/BrowserZero.app <url>` checks: SafeLinks URL gets unwrapped; Arc space opens; Dia profile opens.
 - [ ] **Step 4: Commit** `docs: README`.

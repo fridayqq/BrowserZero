@@ -1,4 +1,4 @@
-# Spacelink — design
+# Browser Zero — design
 
 Date: 2026-10-31
 Status: approved direction (user: "Делай"), MVP scope = items 1–5 below.
@@ -66,7 +66,7 @@ reuse its discovery/opening code, it is verified against the user's real data).
   `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk swift test` (verified).
   XCTest does **not** build under CLT — don't use it.
 - Machine: Apple Silicon, macOS 27. Min deployment target: macOS 14.
-- Different bundle id from Browserino: `dev.fridayqq.Spacelink` (my call), so both can coexist.
+- Different bundle id from Browserino: `dev.fridayqq.BrowserZero` (my call), so both can coexist.
 
 ## How it works (decided)
 
@@ -158,7 +158,7 @@ Also handle `NSUserActivity` browsing-web continuation like Browserino does.
 
 ### Storage
 
-- JSON files in `~/Library/Application Support/Spacelink/`: `config.json` (rules, hidden targets,
+- JSON files in `~/Library/Application Support/BrowserZero/`: `config.json` (rules, hidden targets,
   settings), `targets-cache.json`, `history.json`. Keep the config schema clean enough to become
   TOML later.
 
