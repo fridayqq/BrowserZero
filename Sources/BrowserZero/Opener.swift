@@ -24,15 +24,26 @@ enum Opener {
             let containerURLs = urls.map { ScriptBuilder.zenContainerURL(container: profile.value, url: $0) }
             openPlain(containerURLs, app: appURL)
         case .chromiumProfile:
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.createsNewApplicationInstance = true
-            configuration.arguments = ScriptBuilder.chromiumArguments(profileDir: profile.value, urls: urls)
-            NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+            openInChromiumProfile(urls, profileDir: profile.value, app: appURL)
         }
     }
 
     private static func openPlain(_ urls: [URL], app: URL) {
         NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    private static func openInChromiumProfile(_ urls: [URL], profileDir: String, app: URL) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.arguments = ScriptBuilder.chromiumArguments(profileDir: profileDir, urls: urls)
+        NSWorkspace.shared.openApplication(at: app, configuration: configuration) { _, error in
+            guard let error else { return }
+            NSLog("Browser Zero: Chromium profile launch failed: \(error.localizedDescription)")
+            // Never lose the link: open it in the browser without the profile.
+            DispatchQueue.main.async {
+                openPlain(urls, app: app)
+            }
+        }
     }
 
     private static func openInArc(_ urls: [URL], space: String, fallbackApp: URL) {

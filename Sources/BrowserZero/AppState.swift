@@ -7,7 +7,7 @@ final class AppState: ObservableObject {
     @Published var config: Config
     @Published var targets: [Target]
     @Published var history: History
-    @Published var zenSetup: ZenSetup
+    @Published var zenSetup = ZenSetup(addonInstalled: false, forceContainerEnabled: false, profileFound: false)
 
     let store: Store
     private let discovery: TargetDiscovery
@@ -20,11 +20,10 @@ final class AppState: ObservableObject {
         self.config = store.loadConfig()
         self.history = store.loadHistory()
         self.targets = store.loadTargets()
-        self.zenSetup = discovery.zenSetup()
         refreshTargets()
     }
 
-    /// Re-reads installed browsers and their profiles in the background, then publishes and caches the result.
+    /// Re-reads installed browsers, their profiles and Zen's setup in the background, then publishes and caches the result.
     func refreshTargets() {
         let discovery = self.discovery
         let previous = targets

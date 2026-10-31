@@ -11,8 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state = AppState()
         self.state = state
         router = Router(state: state) { url, _ in
-            // Temporary until the picker exists: open in the first visible target.
-            guard let target = state.visibleTargets().first else {
+            // Temporary until the picker exists: open in the first visible target, else a fallback browser.
+            guard let target = state.visibleTargets().first ?? Browsers.fallbackTarget() else {
                 NSLog("Browser Zero: no browser available for \(url.absoluteString)")
                 return
             }
@@ -43,15 +43,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where url.isFileURL {
+        for url in urls {
             router?.handle(url, sourceApp: nil, forcePicker: false)
         }
     }
 
     @objc private func handleGetURL(_ event: NSAppleEventDescriptor, withReply reply: NSAppleEventDescriptor) {
-        guard let string = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
-              let url = URL(string: string)
-        else { return }
+        guard let string = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue else { return }
+        guard let url = URL(string: string)
+            ?? string.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed).flatMap(URL.init(string:))
+        else {
+            NSLog("Browser Zero: dropped unparseable URL: \(string)")
+            return
+        }
 
         let pid = event.attributeDescriptor(forKeyword: AEKeyword(keySenderPIDAttr))?.int32Value
         let sourceApp = pid.flatMap { SourceApp.bundleId(forPID: $0) }
