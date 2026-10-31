@@ -49,30 +49,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
-    /// Shows the picker for a link. While it is visible, the link waits in the queue instead.
+    /// Queues a link behind any waiting ones, then shows the oldest if the picker is free.
+    /// Links never jump the queue, even one arriving while the previous picker is still closing.
     private func showPicker(_ url: URL, source: String?) {
-        guard let state else { return }
-        if let picker, picker.isVisible {
-            queuedLinks.append((url: url, source: source))
-            return
-        }
+        queuedLinks.append((url: url, source: source))
+        showNextQueuedLinkIfIdle()
+    }
+
+    private func showNextQueuedLinkIfIdle() {
+        guard let state, picker?.isVisible != true, !queuedLinks.isEmpty else { return }
+        let next = queuedLinks.removeFirst()
         let panel = picker ?? makePicker()
         picker = panel
-        panel.show(url: url, source: source, state: state)
+        panel.show(url: next.url, source: next.source, state: state)
     }
 
     private func makePicker() -> PickerPanel {
         let panel = PickerPanel()
         panel.onClose = { [weak self] in
-            DispatchQueue.main.async { self?.showNextQueuedLink() }
+            DispatchQueue.main.async { self?.showNextQueuedLinkIfIdle() }
         }
         return panel
-    }
-
-    private func showNextQueuedLink() {
-        guard !queuedLinks.isEmpty else { return }
-        let next = queuedLinks.removeFirst()
-        showPicker(next.url, source: next.source)
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

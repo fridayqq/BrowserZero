@@ -32,8 +32,10 @@ struct PickerView: View {
         .onAppear { searchFocused = true }
     }
 
-    /// Keeps the whole picker within `PickerPanel.maxHeight` next to the header, banner and search field.
-    private static let maxListHeight: CGFloat = 290
+    /// Keeps the whole picker within `PickerPanel.maxHeight`: the list gives way to the banner when it shows.
+    private var maxListHeight: CGFloat {
+        model.suggestion == nil ? 290 : 255
+    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -118,7 +120,7 @@ struct PickerView: View {
                     }
                 }
             }
-            .frame(maxHeight: Self.maxListHeight)
+            .frame(maxHeight: maxListHeight)
             .onChange(of: model.selection) { _, newValue in
                 guard rows.indices.contains(newValue) else { return }
                 proxy.scrollTo(rows[newValue].id)
