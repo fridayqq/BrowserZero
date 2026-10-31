@@ -22,6 +22,24 @@ private func cleaned(_ string: String) -> String {
             == "https://example.com/x")
     }
 
+    @Test func googleSearchNotUnwrapped() {
+        #expect(cleaned("https://www.google.com/search?url=https://x.com/a")
+            == "https://www.google.com/search?url=https://x.com/a")
+    }
+
+    @Test func googleUrlParamFallback() {
+        #expect(cleaned("https://www.google.com/url?url=https://x.com/a") == "https://x.com/a")
+    }
+
+    @Test func googleCountryDomain() {
+        #expect(cleaned("https://www.google.co.uk/url?q=https://x.com/a") == "https://x.com/a")
+    }
+
+    @Test func googleSpoofRejected() {
+        #expect(cleaned("https://google.com.evil.net/url?q=https://x.com/a")
+            == "https://google.com.evil.net/url?q=https://x.com/a")
+    }
+
     @Test func unwrapsNested() {
         #expect(cleaned("https://eur02.safelinks.protection.outlook.com/?url=https%3A%2F%2Fwww.google.com%2Furl%3Fq%3Dhttps%253A%252F%252Fexample.com%252Finner&data=05")
             == "https://example.com/inner")

@@ -22,40 +22,54 @@ public enum LinkCleaner {
     private static func unwrapOnce(_ url: URL) -> URL? {
         guard let host = url.host?.lowercased() else { return nil }
         let path = url.path
-        let param: String
+        let params: [String]
 
         if host.hasSuffix(".safelinks.protection.outlook.com") {
-            param = "url"
+            params = ["url"]
         } else if host == "statics.teams.cdn.office.net", path.contains("/safelinks/") {
-            param = "url"
-        } else if isGoogleHost(host) {
-            param = path == "/url" ? "q" : "url"
+            params = ["url"]
+        } else if isGoogleHost(host), path == "/url" {
+            params = ["q", "url"]
         } else if host == "slack-redir.net", path == "/link" {
-            param = "url"
+            params = ["url"]
         } else if host == "l.facebook.com" || host == "lm.facebook.com", path == "/l.php" {
-            param = "u"
+            params = ["u"]
         } else if host == "away.vk.com", path == "/away.php" {
-            param = "to"
+            params = ["to"]
         } else {
             return nil
         }
 
-        return targetURL(in: url, param: param)
+        return targetURL(in: url, params: params)
     }
 
-    /// Matches `google.<tld>` and `www.google.<tld>`.
+    /// Matches `google.<tld>`, `google.co.<cc>` and `google.com.<cc>` (cc is two letters), each optionally
+    /// prefixed with `www.`. Expects a lowercased host.
     private static func isGoogleHost(_ host: String) -> Bool {
         var labels = host.split(separator: ".").map(String.init)
         if labels.first == "www" {
             labels.removeFirst()
         }
-        return labels.count >= 2 && labels[0] == "google"
+        guard labels.first == "google" else { return false }
+        switch labels.count {
+        case 2:
+            return isLetters(labels[1])
+        case 3:
+            return ["co", "com"].contains(labels[1]) && labels[2].count == 2 && isLetters(labels[2])
+        default:
+            return false
+        }
     }
 
-    /// The query parameter `param` parsed as an absolute http(s) URL with a host.
-    private static func targetURL(in url: URL, param: String) -> URL? {
+    private static func isLetters(_ string: String) -> Bool {
+        !string.isEmpty && string.allSatisfy { $0.isASCII && $0.isLetter }
+    }
+
+    /// The value of the first of `params` present in the query, parsed as an absolute http(s) URL with a host.
+    private static func targetURL(in url: URL, params: [String]) -> URL? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let value = components.queryItems?.first(where: { $0.name == param })?.value,
+              let items = components.queryItems,
+              let value = params.compactMap({ name in items.first(where: { $0.name == name })?.value }).first,
               let target = URL(string: value),
               let scheme = target.scheme?.lowercased(), scheme == "http" || scheme == "https",
               let host = target.host, !host.isEmpty
