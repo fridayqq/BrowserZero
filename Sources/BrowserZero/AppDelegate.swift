@@ -7,12 +7,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var state: AppState?
     private var router: Router?
     private var picker: PickerPanel?
+    private var settings: SettingsWindowController?
     /// Links that arrived while the picker was visible; shown one at a time, first in first out.
     private var queuedLinks: [(url: URL, source: String?)] = []
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         let state = AppState()
         self.state = state
+        settings = SettingsWindowController(state: state)
+        // An accessory app has no menu bar, but its main menu still carries the ⌘, shortcut for Settings.
+        NSApp.mainMenu = makeMainMenu()
         router = Router(state: state) { [weak self] url, source in
             // With no picker target, fall back to a plain browser so the link is never lost.
             guard !state.visibleTargets().isEmpty else {
@@ -41,12 +45,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        menu.addItem(withTitle: "Settings…", action: nil, keyEquivalent: "")
+        menu.addItem(settingsMenuItem())
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
 
         statusItem = item
+    }
+
+    /// Opening the app again (e.g. from Finder) shows Settings, since there is no other window to show.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings?.show()
+        return true
+    }
+
+    @objc private func openSettings() {
+        settings?.show()
+    }
+
+    private func settingsMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        item.target = self
+        return item
+    }
+
+    private func makeMainMenu() -> NSMenu {
+        let mainMenu = NSMenu()
+        let appMenu = NSMenu()
+        appMenu.addItem(settingsMenuItem())
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit Browser Zero", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let appItem = NSMenuItem()
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+        return mainMenu
     }
 
     /// Queues a link behind any waiting ones, then shows the oldest if the picker is free.
