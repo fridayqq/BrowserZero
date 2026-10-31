@@ -18,16 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // An accessory app has no menu bar, but its main menu still carries the ⌘, shortcut for Settings.
         NSApp.mainMenu = makeMainMenu()
         router = Router(state: state) { [weak self] url, source in
-            // With no picker target, fall back to a plain browser so the link is never lost.
-            guard !state.visibleTargets().isEmpty else {
-                guard let target = Browsers.fallbackTarget() else {
-                    NSLog("Browser Zero: no browser available for \(url.absoluteString)")
-                    return
-                }
-                Opener.open([url], target: target, zenSetup: state.zenSetup)
+            // On a fresh install the first link can arrive before discovery finishes, so give it a moment.
+            guard state.visibleTargets().isEmpty, state.isRefreshing else {
+                self?.route(url, source: source, state: state)
                 return
             }
-            self?.showPicker(url, source: source)
+            state.afterRefresh(maxWait: .seconds(2)) { [weak self] in
+                self?.route(url, source: source, state: state)
+            }
         }
 
         NSAppleEventManager.shared().setEventHandler(
@@ -90,10 +88,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showNextQueuedLinkIfIdle() {
         guard let state, picker?.isVisible != true, !queuedLinks.isEmpty else { return }
+        // Refresh so the picker about to show reflects browsers and profiles added since the last one.
+        state.refreshTargets()
         let next = queuedLinks.removeFirst()
+        guard !state.visibleTargets().isEmpty else {
+            openWithFallback(next.url, state: state)
+            showNextQueuedLinkIfIdle()
+            return
+        }
         let panel = picker ?? makePicker()
         picker = panel
         panel.show(url: next.url, source: next.source, state: state)
+    }
+
+    /// Shows the picker when some target can take the link, otherwise opens it in a plain browser.
+    private func route(_ url: URL, source: String?, state: AppState) {
+        guard !state.visibleTargets().isEmpty else {
+            openWithFallback(url, state: state)
+            return
+        }
+        showPicker(url, source: source)
+    }
+
+    /// With no picker target, a plain browser takes the link so it is never lost.
+    private func openWithFallback(_ url: URL, state: AppState) {
+        guard let target = Browsers.fallbackTarget() else {
+            NSLog("Browser Zero: no browser available for \(url.absoluteString)")
+            return
+        }
+        Opener.open([url], target: target, zenSetup: state.zenSetup)
     }
 
     private func makePicker() -> PickerPanel {
@@ -108,6 +131,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for url in urls {
             router?.handle(url, sourceApp: nil, forcePicker: false)
         }
+    }
+
+    /// Handoff: a browsing activity from another device (Safari, Handoff) arrives as a web page URL.
+    func application(_ application: NSApplication, willContinueUserActivityWithType userActivityType: String) -> Bool {
+        userActivityType == NSUserActivityTypeBrowsingWeb
+    }
+
+    func application(
+        _ application: NSApplication,
+        continue userActivity: NSUserActivity,
+        restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void
+    ) -> Bool {
+        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL else {
+            return false
+        }
+        router?.handle(url, sourceApp: nil, forcePicker: false)
+        return true
     }
 
     @objc private func handleGetURL(_ event: NSAppleEventDescriptor, withReply reply: NSAppleEventDescriptor) {

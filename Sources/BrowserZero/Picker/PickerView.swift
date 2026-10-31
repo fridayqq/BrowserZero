@@ -77,16 +77,21 @@ struct PickerView: View {
         TextField("Filter browsers and profiles", text: $model.query)
             .textFieldStyle(.roundedBorder)
             .focused($searchFocused)
+            .onChange(of: model.focusTick) {
+                searchFocused = true
+            }
+            .onSubmit {
+                model.openSelected()
+            }
+            .onExitCommand {
+                model.close()
+            }
             .onKeyPress(.upArrow) {
                 model.move(-1)
                 return .handled
             }
             .onKeyPress(.downArrow) {
                 model.move(1)
-                return .handled
-            }
-            .onKeyPress(.return) {
-                model.openSelected()
                 return .handled
             }
             .onKeyPress(.escape) {

@@ -15,6 +15,8 @@ final class PickerModel: ObservableObject {
         }
     }
     @Published var selection = 0
+    /// Bumped whenever the panel becomes key again, so the view can re-take focus for the search field.
+    @Published private(set) var focusTick = 0
 
     /// Target the learning banner offers to make permanent for this host, if any.
     private(set) var suggestion: Target?
@@ -112,6 +114,10 @@ final class PickerModel: ObservableObject {
 
     func close() {
         closePanel()
+    }
+
+    func requestSearchFocus() {
+        focusTick += 1
     }
 
     private func complete(_ target: Target) {

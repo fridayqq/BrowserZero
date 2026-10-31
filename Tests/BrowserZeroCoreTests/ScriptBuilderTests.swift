@@ -42,6 +42,14 @@ private func compiles(_ script: String) -> Bool {
         #expect(script.contains("activate"))
     }
 
+    @Test func arcScriptHasTimeout() throws {
+        let url = try #require(URL(string: "https://e.com/1"))
+        let script = ScriptBuilder.arcScript(space: "Dev", urls: [url])
+        #expect(script.contains("with timeout of 10 seconds"))
+        #expect(script.contains("end timeout"))
+        #expect(compiles(script))
+    }
+
     @Test func zenURLRoundTrip() throws {
         let original = "https://e.com/a?b=1&c=2+3#frag"
         let url = try #require(URL(string: original))

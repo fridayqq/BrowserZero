@@ -16,6 +16,8 @@ final class PickerPanel: NSPanel, NSWindowDelegate {
     private var isArmed = false
     /// Incremented on every show, so a retry timer from an earlier show does nothing.
     private var showToken = 0
+    /// The model of the content currently shown, so that key-window changes can re-focus its search field.
+    private weak var currentModel: PickerModel?
 
     init() {
         super.init(
@@ -51,6 +53,7 @@ final class PickerPanel: NSPanel, NSWindowDelegate {
         let model = PickerModel(url: url, source: source, state: state, close: { [weak self] in
             self?.close()
         })
+        currentModel = model
         let hosting = NSHostingView(rootView: PickerView(model: model, onHeightChange: { [weak self] height in
             DispatchQueue.main.async { self?.refit(height: height) }
         }))
@@ -76,8 +79,14 @@ final class PickerPanel: NSPanel, NSWindowDelegate {
         }
     }
 
+    /// Esc reaches here even when no field has focus.
+    override func cancelOperation(_ sender: Any?) {
+        close()
+    }
+
     func windowDidBecomeKey(_ notification: Notification) {
         isArmed = true
+        currentModel?.requestSearchFocus()
     }
 
     func windowDidResignKey(_ notification: Notification) {

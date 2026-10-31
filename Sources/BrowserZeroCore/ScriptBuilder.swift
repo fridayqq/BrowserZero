@@ -7,16 +7,19 @@ public enum ScriptBuilder {
         let tabs = urls
             .map { "make new tab with properties {URL:\"\(escapeAppleScript($0.absoluteString))\"}" }
             .joined(separator: "\n")
+        // Arc can hang on a busy or unresponsive app; the timeout turns that into an error the Opener recovers from.
         return """
         tell application "Arc"
-            if (count of windows) is 0 then make new window
-            tell front window
-                tell space "\(escapeAppleScript(space))"
-                    focus
-                    \(tabs)
+            with timeout of 10 seconds
+                if (count of windows) is 0 then make new window
+                tell front window
+                    tell space "\(escapeAppleScript(space))"
+                        focus
+                        \(tabs)
+                    end tell
                 end tell
-            end tell
-            activate
+                activate
+            end timeout
         end tell
         """
     }

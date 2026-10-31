@@ -28,8 +28,24 @@ enum Opener {
         }
     }
 
+    /// Opens the links in `app`. If macOS refuses, retries once in the fallback browser, never without an app:
+    /// a plain open of a URL would route back to Browser Zero.
     private static func openPlain(_ urls: [URL], app: URL) {
-        NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            guard let error else { return }
+            NSLog("Browser Zero: open in \(app.lastPathComponent) failed: \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                guard let fallback = Browsers.fallbackTarget(), fallback.browser.path != app.path else {
+                    NSLog("Browser Zero: no other browser to retry \(urls.count) link(s) in")
+                    return
+                }
+                let fallbackApp = URL(fileURLWithPath: fallback.browser.path)
+                NSWorkspace.shared.open(urls, withApplicationAt: fallbackApp, configuration: NSWorkspace.OpenConfiguration()) { _, retryError in
+                    guard let retryError else { return }
+                    NSLog("Browser Zero: retry in \(fallbackApp.lastPathComponent) failed: \(retryError.localizedDescription)")
+                }
+            }
+        }
     }
 
     private static func openInChromiumProfile(_ urls: [URL], profileDir: String, app: URL) {

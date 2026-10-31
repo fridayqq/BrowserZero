@@ -23,8 +23,15 @@ final class AppState: ObservableObject {
         refreshTargets()
     }
 
+    /// True while a background refresh is running. Overlapping requests are coalesced into the running one.
+    private(set) var isRefreshing = false
+    /// Callbacks waiting for the running refresh to publish its result.
+    private var refreshWaiters: [() -> Void] = []
+
     /// Re-reads installed browsers, their profiles and Zen's setup in the background, then publishes and caches the result.
     func refreshTargets() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
         let discovery = self.discovery
         let previous = targets
         DispatchQueue.global(qos: .userInitiated).async {
@@ -36,8 +43,31 @@ final class AppState: ObservableObject {
                     self.targets = found
                     self.zenSetup = zen
                     self.store.saveTargets(found)
+                    self.isRefreshing = false
+                    let waiters = self.refreshWaiters
+                    self.refreshWaiters = []
+                    waiters.forEach { $0() }
                 }
             }
+        }
+    }
+
+    /// Runs `body` as soon as no refresh is running, or after `maxWait` at the latest. Runs it at once when idle.
+    func afterRefresh(maxWait: Duration, _ body: @escaping () -> Void) {
+        guard isRefreshing else {
+            body()
+            return
+        }
+        var finished = false
+        let finish: () -> Void = {
+            guard !finished else { return }
+            finished = true
+            body()
+        }
+        refreshWaiters.append(finish)
+        Task {
+            try? await Task.sleep(for: maxWait)
+            finish()
         }
     }
 
