@@ -54,7 +54,7 @@ struct RulesTab: View {
 
             Image(systemName: "arrow.right")
                 .foregroundStyle(.secondary)
-            Text(state.targets.first { $0.id == rule.targetId }?.displayName ?? "Missing target")
+            Text(targetLabel(for: rule))
                 .foregroundStyle(state.targets.contains { $0.id == rule.targetId } ? Color.primary : Color.orange)
                 .lineLimit(1)
             Button {
@@ -66,10 +66,21 @@ struct RulesTab: View {
             .help("Delete rule")
         }
     }
+
+    private func targetLabel(for rule: Rule) -> String {
+        guard let target = state.targets.first(where: { $0.id == rule.targetId }) else { return "Missing target" }
+        return RuleText.targetLabel(target, config: state.config)
+    }
 }
 
 /// Text shared by the rule list, the editor and the test field.
 enum RuleText {
+    /// A target's display name, marked "(hidden)" when the user hid it or its browser.
+    static func targetLabel(_ target: Target, config: Config) -> String {
+        let hidden = config.hiddenTargets.contains(target.id) || config.hiddenBrowsers.contains(target.browser.bundleId)
+        return hidden ? target.displayName + " (hidden)" : target.displayName
+    }
+
     static func title(_ rule: Rule) -> String {
         if !rule.name.isEmpty { return rule.name }
         if !rule.pattern.isEmpty { return rule.pattern }
@@ -132,7 +143,8 @@ private struct RuleEditor: View {
         Rule(
             id: original.id,
             name: name.trimmingCharacters(in: .whitespaces),
-            pattern: pattern.trimmingCharacters(in: .whitespaces),
+            // A regex is validated and saved exactly as typed; host patterns are trimmed.
+            pattern: isRegex ? pattern : pattern.trimmingCharacters(in: .whitespaces),
             isRegex: isRegex,
             sourceApps: sourceApps,
             targetId: targetId
@@ -147,8 +159,16 @@ private struct RuleEditor: View {
         !draft.pattern.isEmpty || !sourceApps.isEmpty
     }
 
+    private var selectableIds: Set<String> {
+        Set(state.targets.filter(\.isSelectable).map(\.id))
+    }
+
+    private var targetValid: Bool {
+        selectableIds.contains(targetId)
+    }
+
     private var canSave: Bool {
-        !targetId.isEmpty && regexValid && hasCondition
+        targetValid && regexValid && hasCondition
     }
 
     var body: some View {
@@ -187,8 +207,13 @@ private struct RuleEditor: View {
                     Picker("Open in", selection: $targetId) {
                         Text("Choose a target").tag("")
                         ForEach(state.targets.filter(\.isSelectable)) { target in
-                            Text(target.displayName).tag(target.id)
+                            Text(RuleText.targetLabel(target, config: state.config)).tag(target.id)
                         }
+                    }
+                    if !targetValid {
+                        Text("Target unavailable — choose another")
+                            .foregroundStyle(Color.orange)
+                            .font(.caption)
                     }
                 }
 
@@ -270,7 +295,7 @@ private struct RuleEditor: View {
         guard let target = state.targets.first(where: { $0.id == rule.targetId }) else {
             return "\(cleaned)\nRule “\(RuleText.title(rule))” matches, but its target is missing. The picker opens."
         }
-        return "\(cleaned)\nRule “\(RuleText.title(rule))” opens it in \(target.displayName)."
+        return "\(cleaned)\nRule “\(RuleText.title(rule))” opens it in \(RuleText.targetLabel(target, config: state.config))."
     }
 
     private func save() {
