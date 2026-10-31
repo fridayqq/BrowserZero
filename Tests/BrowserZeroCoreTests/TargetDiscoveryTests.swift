@@ -74,6 +74,25 @@ private func populate(_ root: URL, chromeLocalState: Data? = nil) throws {
         #expect(targets == [Target(browser: chrome, profile: nil), previous])
     }
 
+    @Test func zenUnreadableContainersKeepsPrevious() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try populate(root)
+        // containers.json exists but cannot be read as a file.
+        let containers = root.appendingPathComponent("\(zenProfileFolder)/containers.json")
+        try FileManager.default.removeItem(at: containers)
+        try FileManager.default.createDirectory(at: containers, withIntermediateDirectories: true)
+        let previous = Target(
+            browser: zen,
+            profile: Profile(kind: .zenWorkspace, name: "Dev", value: "Work", icon: "🌏️")
+        )
+
+        let targets = TargetDiscovery(appSupport: root).discover(browsers: [zen], previous: [previous])
+
+        #expect(targets == [Target(browser: zen, profile: nil), previous])
+        #expect(targets.last?.isSelectable == true)
+    }
+
     @Test func missingSourceGivesPlainOnly() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }

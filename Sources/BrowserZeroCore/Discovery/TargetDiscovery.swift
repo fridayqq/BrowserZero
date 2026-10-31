@@ -111,11 +111,24 @@ public struct TargetDiscovery: Sendable {
         }
 
         let directory = profileDirectory(path)
-        return parse(directory.appendingPathComponent("zen-sessions.jsonlz4")) { data in
-            guard let sessions = MozLz4.decode(data) else { return nil }
-            let containers = try? Data(contentsOf: directory.appendingPathComponent("containers.json"))
-            return ZenDiscovery.workspaces(sessionsJSON: sessions, containersJSON: containers)
+        let sessionsData: Data
+        switch read(directory.appendingPathComponent("zen-sessions.jsonlz4")) {
+        case .missing: return .missing
+        case .unreadable: return .unreadable
+        case .data(let data): sessionsData = data
         }
+        guard let sessions = MozLz4.decode(sessionsData) else { return .unreadable }
+
+        // containers.json is optional (missing -> built-in names), but a file that exists and cannot
+        // be read makes the whole Zen source unreadable so the previous workspaces are kept.
+        let containersData: Data?
+        switch read(directory.appendingPathComponent("containers.json")) {
+        case .missing: containersData = nil
+        case .unreadable: return .unreadable
+        case .data(let data): containersData = data
+        }
+        return ZenDiscovery.workspaces(sessionsJSON: sessions, containersJSON: containersData)
+            .map(Source.profiles) ?? .unreadable
     }
 
     private func parse(_ url: URL, _ parser: (Data) -> [Profile]?) -> Source {
