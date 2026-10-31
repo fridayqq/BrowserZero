@@ -66,16 +66,6 @@
 				<string>https</string>
 			</array>
 		</dict>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>Browser Zero Custom Scheme</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>browserzero</string>
-			</array>
-		</dict>
 	</array>
 	<key>NSUserActivityTypes</key>
 	<array>
