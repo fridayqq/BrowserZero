@@ -70,14 +70,15 @@ public enum ZenDiscovery {
             .contains { $0.trimmingCharacters(in: .whitespaces) == line }
     }
 
-    /// userContextId -> container name for public identities.
+    /// userContextId -> container name. Built-in ids 1...4 are always present (Firefox always has them),
+    /// and public identities override them with their own name or l10n name.
     private static func containerNames(_ data: Data?) -> [Int: String] {
+        var result = builtInNames
         guard let data,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let identities = json["identities"] as? [[String: Any]]
-        else { return [:] }
+        else { return result }
 
-        var result: [Int: String] = [:]
         for identity in identities where identity["public"] as? Bool ?? false {
             guard let id = identity["userContextId"] as? Int else { continue }
             let name = (identity["name"] as? String)

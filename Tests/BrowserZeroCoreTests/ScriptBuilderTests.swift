@@ -9,7 +9,14 @@ private func compiles(_ script: String) -> Bool {
 
 @Suite struct ScriptBuilderTests {
     @Test func arcScriptEscapes() throws {
-        let url = try #require(URL(string: "https://e.com/?q=%22x%22%5Cy"))
+        // Built from the raw string; URL(string:) may percent-encode it, so fall back to URLComponents if it refuses.
+        let raw = #"https://e.com/?q="x"\y"#
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "e.com"
+        components.path = "/"
+        components.query = #"q="x"\y"#
+        let url = try #require(URL(string: raw) ?? components.url)
         let script = ScriptBuilder.arcScript(space: #"My "Work""#, urls: [url])
         #expect(script.contains(#"tell space "My \"Work\"""#))
         #expect(script.contains(#"{URL:"https://e.com/?q=%22x%22%5Cy"}"#))
@@ -46,6 +53,16 @@ private func compiles(_ script: String) -> Bool {
         let items = components.queryItems ?? []
         #expect(items.first { $0.name == "url" }?.value == original)
         #expect(items.first { $0.name == "name" }?.value == "Work")
+    }
+
+    @Test func zenURLCyrillic() throws {
+        let url = try #require(URL(string: "https://ru.wikipedia.org/wiki/Москва"))
+        let built = ScriptBuilder.zenContainerURL(container: "Work", url: url)
+        #expect(built.absoluteString.allSatisfy { $0.isASCII })
+        let components = try #require(URLComponents(
+            string: built.absoluteString.replacingOccurrences(of: "ext+container:", with: "x:?")
+        ))
+        #expect(components.queryItems?.first { $0.name == "url" }?.value == url.absoluteString)
     }
 
     @Test func chromiumArgumentsPrependProfile() throws {

@@ -26,6 +26,11 @@ private func fixture(_ name: String, _ ext: String) throws -> Data {
         #expect(MozLz4.decode(bad) == nil)
     }
 
+    @Test func mozLz4RejectsHugeDeclaredSize() {
+        let huge = MozLz4.magic + Data([0xFF, 0xFF, 0xFF, 0xFF]) + Data([0x00])
+        #expect(MozLz4.decode(huge) == nil)
+    }
+
     @Test func arcSpacesDeduped() throws {
         let profiles = try #require(ArcDiscovery.spaces(sidebarJSON: try fixture("arc-sidebar", "json")))
         #expect(profiles.map(\.name) == ["Personal", "Dev"])
@@ -63,6 +68,14 @@ private func fixture(_ name: String, _ ext: String) throws -> Data {
         let workspaces = try #require(ZenDiscovery.workspaces(sessionsJSON: sessions, containersJSON: containers))
         #expect(workspaces.map(\.value) == ["Clients", ""])
         #expect(workspaces.map(\.icon) == [nil, nil])
+    }
+
+    @Test func zenBuiltInNamesWithoutContainersFile() throws {
+        let workspaces = try #require(ZenDiscovery.workspaces(
+            sessionsJSON: try fixture("zen-sessions", "json"),
+            containersJSON: nil
+        ))
+        #expect(workspaces.map(\.value) == ["", "Work", ""])
     }
 
     @Test func zenAddonDetected() throws {

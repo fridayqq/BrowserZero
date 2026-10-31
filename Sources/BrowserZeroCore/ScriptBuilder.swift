@@ -36,7 +36,7 @@ public enum ScriptBuilder {
     }
 
     private static func percentEncode(_ string: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
         return string.addingPercentEncoding(withAllowedCharacters: allowed) ?? string
     }
 }

@@ -10,8 +10,10 @@ public enum MozLz4 {
         guard data.count > headerSize, data.prefix(magic.count) == magic else { return nil }
         let bytes = [UInt8](data)
         let size = (0..<4).reduce(0) { $0 | Int(bytes[8 + $1]) << (8 * $1) }
-        guard size > 0 else { return nil }
         let source = Array(bytes[headerSize...])
+        // LZ4 compresses at most 255:1 plus a small header; reject sizes that cannot come from this body
+        // before allocating the output buffer.
+        guard size > 0, size <= source.count * 255 + 16 else { return nil }
 
         var output = [UInt8](repeating: 0, count: size)
         let written = compression_decode_buffer(
