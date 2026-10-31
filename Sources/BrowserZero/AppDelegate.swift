@@ -6,17 +6,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var state: AppState?
     private var router: Router?
+    private var picker: PickerPanel?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         let state = AppState()
         self.state = state
-        router = Router(state: state) { url, _ in
-            // Temporary until the picker exists: open in the first visible target, else a fallback browser.
-            guard let target = state.visibleTargets().first ?? Browsers.fallbackTarget() else {
-                NSLog("Browser Zero: no browser available for \(url.absoluteString)")
+        router = Router(state: state) { [weak self] url, source in
+            // With no picker target, fall back to a plain browser so the link is never lost.
+            guard !state.visibleTargets().isEmpty else {
+                guard let target = Browsers.fallbackTarget() else {
+                    NSLog("Browser Zero: no browser available for \(url.absoluteString)")
+                    return
+                }
+                Opener.open([url], target: target, zenSetup: state.zenSetup)
                 return
             }
-            Opener.open([url], target: target, zenSetup: state.zenSetup)
+            self?.showPicker(url, source: source, state: state)
         }
 
         NSAppleEventManager.shared().setEventHandler(
@@ -40,6 +45,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.menu = menu
 
         statusItem = item
+    }
+
+    /// One picker panel serves every link; a new link replaces what it shows.
+    private func showPicker(_ url: URL, source: String?, state: AppState) {
+        let panel = picker ?? PickerPanel()
+        picker = panel
+        panel.show(url: url, source: source, state: state)
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
