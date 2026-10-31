@@ -5,6 +5,8 @@ import BrowserZeroCore
 /// Picker content: the link's host and path, an optional learning banner, the search field and ranked rows.
 struct PickerView: View {
     @ObservedObject var model: PickerModel
+    /// Reports the content's height whenever it changes, so the panel can refit.
+    var onHeightChange: (CGFloat) -> Void
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -18,10 +20,20 @@ struct PickerView: View {
         }
         .padding(12)
         .frame(width: PickerPanel.width)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .background { shortcuts }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+            }
+        }
+        .onPreferenceChange(ContentHeightKey.self) { onHeightChange($0) }
         .onAppear { searchFocused = true }
     }
+
+    /// Keeps the whole picker within `PickerPanel.maxHeight` next to the header, banner and search field.
+    private static let maxListHeight: CGFloat = 290
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -106,7 +118,7 @@ struct PickerView: View {
                     }
                 }
             }
-            .frame(maxHeight: 360)
+            .frame(maxHeight: Self.maxListHeight)
             .onChange(of: model.selection) { _, newValue in
                 guard rows.indices.contains(newValue) else { return }
                 proxy.scrollTo(rows[newValue].id)
@@ -171,5 +183,13 @@ struct PickerView: View {
         .buttonStyle(.plain)
         .opacity(0)
         .frame(width: 0, height: 0)
+    }
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat { 0 }
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

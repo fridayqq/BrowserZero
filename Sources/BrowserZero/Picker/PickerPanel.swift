@@ -3,14 +3,19 @@ import SwiftUI
 import BrowserZeroCore
 
 /// The picker: a non-activating panel at the mouse cursor that asks where a link should open.
-/// One instance serves every link; showing it again replaces its content and position.
+/// One instance serves every link at a time; showing it again replaces its content and position.
 final class PickerPanel: NSPanel, NSWindowDelegate {
     static let width: CGFloat = 300
     static let maxHeight: CGFloat = 420
 
-    /// The panel closes on resign-key only once it has really become key. Activation of an
-    /// accessory app is asynchronous, so the first resign-key would otherwise close it at once.
+    /// Called after the panel closes for any reason, so that queued links can be shown.
+    var onClose: (() -> Void)?
+
+    /// Close-on-resign-key only arms once the panel has really become key. Activating an accessory app
+    /// is asynchronous, so an early resign-key must not close the panel before the user sees it.
     private var isArmed = false
+    /// Incremented on every show, so a retry timer from an earlier show does nothing.
+    private var showToken = 0
 
     init() {
         super.init(
@@ -37,33 +42,64 @@ final class PickerPanel: NSPanel, NSWindowDelegate {
 
     override var canBecomeKey: Bool { true }
 
-    /// Shows the picker for `url`, replacing whatever it showed before.
+    /// Shows the picker for `url` at the cursor, replacing whatever it showed before.
     func show(url: URL, source: String?, state: AppState) {
+        showToken += 1
+        let token = showToken
+        isArmed = false
+
         let model = PickerModel(url: url, source: source, state: state, close: { [weak self] in
             self?.close()
         })
-        let hosting = NSHostingView(rootView: PickerView(model: model))
+        let hosting = NSHostingView(rootView: PickerView(model: model, onHeightChange: { [weak self] height in
+            DispatchQueue.main.async { self?.refit(height: height) }
+        }))
         contentView = hosting
 
         let height = min(max(hosting.fittingSize.height, 1), Self.maxHeight)
-        setContentSize(NSSize(width: Self.width, height: height))
-        setFrameOrigin(origin(for: NSSize(width: Self.width, height: height)))
+        let size = NSSize(width: Self.width, height: height)
+        setFrame(NSRect(origin: origin(for: size), size: size), display: true)
+        present()
 
-        isArmed = false
-        NSApp.activate(ignoringOtherApps: true)
-        makeKeyAndOrderFront(nil)
+        // If the first activation did not make the panel key, try once more.
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self] in
-            guard let self, self.isVisible else { return }
-            NSApp.activate(ignoringOtherApps: true)
-            self.makeKeyAndOrderFront(nil)
-            self.isArmed = true
+            guard let self, token == self.showToken, self.isVisible, !self.isKeyWindow else { return }
+            self.present()
         }
     }
 
+    override func close() {
+        let wasVisible = isVisible
+        super.close()
+        if wasVisible {
+            onClose?()
+        }
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        isArmed = true
+    }
+
     func windowDidResignKey(_ notification: Notification) {
+        NSLog("Browser Zero: picker resign key, armed=\(isArmed)")
         guard isArmed else { return }
         isArmed = false
         close()
+    }
+
+    private func present() {
+        NSApp.activate(ignoringOtherApps: true)
+        makeKeyAndOrderFront(nil)
+    }
+
+    /// Resizes to the content's height while keeping the top edge fixed; the bottom stays on screen.
+    private func refit(height: CGFloat) {
+        guard isVisible else { return }
+        let newHeight = min(max(height, 1), Self.maxHeight)
+        guard abs(newHeight - frame.height) > 0.5 else { return }
+        let lowestY = (screen ?? NSScreen.main)?.visibleFrame.minY ?? 0
+        let y = max(frame.maxY - newHeight, lowestY + 20)
+        setFrame(NSRect(x: frame.minX, y: y, width: frame.width, height: frame.maxY - y), display: true)
     }
 
     /// Top edge just above the cursor, horizontally centred on it, kept 20pt inside the screen with the cursor.
