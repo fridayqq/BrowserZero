@@ -43,7 +43,7 @@ Then open Settings (⌘, while the app is focused, or open the app again from Fi
 
 The Targets tab shows a checklist of these items. Until they are satisfied, links open in Zen without targeting a workspace.
 
-**Arc.** The first time Browser Zero opens a link in an Arc space, macOS asks for Automation permission for Arc. Allow it.
+**Arc.** The first time Browser Zero opens a link in an Arc space, macOS asks for Automation permission for Arc. Allow it. The build is ad-hoc signed, and that signature changes on every rebuild, so macOS may ask for Automation permission again after you rebuild.
 
 **Chrome.** Reading Chrome's profile list requires Full Disk Access: System Settings → Privacy & Security → Full Disk Access → enable Browser Zero, then press Rescan in the Targets tab. Until then the last known profiles are kept.
 
