@@ -14,26 +14,41 @@ A macOS menu-bar "browser chooser". Instead of asking *which browser*, it asks *
 - **Force the picker:** hold Option while a link arrives to bypass rules.
 - Every failure path falls back to opening the link in the target browser, so a link is never lost.
 
-## Build
-
-Requires only the Xcode Command Line Tools (no Xcode). The build is pinned to the macOS 26.5 SDK, because the macOS 27 SDK's SwiftUI `@State` macro plugin is not available under Command Line Tools.
-
-```sh
-scripts/build-app.sh
-```
-
-This produces `build/BrowserZero.app`, ad-hoc signed.
-
 ## Install
 
 ```sh
+brew install --cask fridayqq/tap/browser-zero
+```
+
+Or download `BrowserZero-<version>.zip` from [Releases](https://github.com/fridayqq/BrowserZero/releases), unzip it into `/Applications` and run `xattr -dr com.apple.quarantine /Applications/BrowserZero.app`. Releases are not notarized yet: without that command macOS refuses to open the app ("cannot verify the developer"). Homebrew clears the flag for you.
+
+Then open Settings (⌘, while the app is focused, or open the app again from Finder) and click **Set as Default Browser** under General. Browser Zero never changes the default browser on its own.
+
+Because releases are ad-hoc signed, macOS treats every update as a new app: it asks again for permission to control Arc, and Chrome needs Full Disk Access again.
+
+## Build from source
+
+Requires only the Xcode Command Line Tools (no Xcode). Under Command Line Tools the build uses the macOS 26.5 SDK, because the macOS 27 SDK's SwiftUI `@State` macro plugin is not available there.
+
+```sh
+scripts/build-app.sh
 pkill -x BrowserZero
 rm -rf /Applications/BrowserZero.app
 cp -R build/BrowserZero.app /Applications/
 open /Applications/BrowserZero.app
 ```
 
-Then open Settings (⌘, while the app is focused, or open the app again from Finder) and click **Set as Default Browser** under General. Browser Zero never changes the default browser on its own.
+`UNIVERSAL=1` builds arm64 + x86_64 (needs full Xcode). `SIGN_IDENTITY="Developer ID Application: …"` signs with the hardened runtime instead of ad-hoc.
+
+## Releasing
+
+Bump `CFBundleShortVersionString` in `Support/Info.plist`, commit, then push a matching tag:
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The `Release` workflow tests, builds a universal app, publishes `BrowserZero-<version>.zip` and, if the `TAP_TOKEN` secret is set (a token with write access to `fridayqq/homebrew-tap`), bumps the cask. Optional secrets turn on signing and notarization: `SIGNING_CERT_P12` + `SIGNING_CERT_PASSWORD` (Developer ID certificate) and `NOTARY_KEY_P8` + `NOTARY_KEY_ID` + `NOTARY_ISSUER_ID` (App Store Connect API key). Once releases are notarized, drop the `postflight` quarantine step from the cask.
 
 ## Browser setup
 

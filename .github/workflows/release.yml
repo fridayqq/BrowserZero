@@ -1,0 +1,89 @@
+name: Release
+
+# Push a tag like v0.2.0 (matching CFBundleShortVersionString) to build and publish
+# a release. Signing and notarization happen only when their secrets are set;
+# otherwise the app is ad-hoc signed. With TAP_TOKEN set, the Homebrew cask in
+# fridayqq/homebrew-tap is bumped automatically.
+on:
+  push:
+    tags: ["v[0-9]*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches app version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Support/Info.plist)"
+          if [[ "$VERSION" != "$APP_VERSION" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match CFBundleShortVersionString $APP_VERSION" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: swift test
+
+      - name: Import signing certificate
+        env:
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: ./scripts/ci-import-certificate.sh
+
+      - name: Build universal app
+        env:
+          UNIVERSAL: "1"
+        run: ./scripts/build-app.sh
+
+      - name: Notarize
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: ./scripts/notarize.sh build/BrowserZero.app
+
+      - name: Package
+        run: |
+          ZIP="BrowserZero-$VERSION.zip"
+          ditto -c -k --keepParent build/BrowserZero.app "$ZIP"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "SHA256=$(shasum -a 256 "$ZIP" | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ -n "${SIGN_IDENTITY:-}" ]]; then
+            NOTE="Signed with a Developer ID and notarized by Apple."
+          else
+            NOTE="Not notarized. Install with Homebrew (it clears the quarantine flag), or after unzipping run: xattr -dr com.apple.quarantine /Applications/BrowserZero.app"
+          fi
+          printf 'Install: `brew install --cask fridayqq/tap/browser-zero`\n\n%s\n\nSHA-256 of %s: `%s`\n' "$NOTE" "$ZIP" "$SHA256" > notes.md
+          gh release create "$GITHUB_REF_NAME" "$ZIP" --title "Browser Zero $VERSION" --notes-file notes.md --verify-tag
+
+      - name: Bump Homebrew cask
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [[ -z "$TAP_TOKEN" ]]; then
+            echo "No TAP_TOKEN; update fridayqq/homebrew-tap by hand (version $VERSION, sha256 $SHA256)."
+            exit 0
+          fi
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/fridayqq/homebrew-tap.git" tap
+          cd tap
+          sed -i '' -E "s/^  version \".*\"/  version \"$VERSION\"/; s/^  sha256 \".*\"/  sha256 \"$SHA256\"/" Casks/browser-zero.rb
+          git config user.name fridayqq
+          git config user.email 112469247+fridayqq@users.noreply.github.com
+          git commit -am "browser-zero $VERSION"
+          git push
