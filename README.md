@@ -2,6 +2,8 @@
 
 A macOS menu-bar "browser chooser". Instead of asking *which browser*, it asks *where*: a browser, or a specific Arc space, Zen workspace or Chromium profile. Links that match a rule open immediately; everything else gets a quick picker that already knows the likely answer.
 
+<p align="center"><img src="docs/demo.gif" width="360" alt="Browser Zero picker: typing “zen per” narrows the list to Zen · Personal, Enter opens the link there"></p>
+
 ## Features
 
 - **Targets:** every Arc space, Zen workspace and Chromium profile is its own row ("Arc · Dev"), plus a plain row per browser. Discovery is automatic and cached.
