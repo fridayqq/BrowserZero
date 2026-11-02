@@ -9,15 +9,16 @@ struct TargetsTab: View {
 
     /// One installed browser with its profile targets, in discovery order.
     private struct BrowserGroup: Identifiable {
-        let browser: BrowserApp
+        let plain: Target
         let profiles: [Target]
+        var browser: BrowserApp { plain.browser }
         var id: String { browser.bundleId }
     }
 
     private var groups: [BrowserGroup] {
         state.targets.filter { $0.profile == nil }.map { plain in
             BrowserGroup(
-                browser: plain.browser,
+                plain: plain,
                 profiles: state.targets.filter { $0.browser.bundleId == plain.browser.bundleId && $0.profile != nil }
             )
         }
@@ -57,7 +58,15 @@ struct TargetsTab: View {
                 ForEach(groups) { group in
                     Section {
                         browserRow(group.browser)
-                        ForEach(group.profiles) { profileRow($0) }
+                        Group {
+                            if !group.profiles.isEmpty {
+                                plainRow(group.plain)
+                            }
+                            ForEach(group.profiles) { profileRow($0) }
+                        }
+                        // Hiding the whole browser hides these too.
+                        .disabled(state.config.hiddenBrowsers.contains(group.browser.bundleId))
+                        .opacity(state.config.hiddenBrowsers.contains(group.browser.bundleId) ? 0.45 : 1)
                     }
                 }
             }
@@ -92,7 +101,7 @@ struct TargetsTab: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(hidden ? .secondary : .primary)
             Spacer()
-            visibilityButton(hidden: hidden) {
+            visibilityButton(hidden: hidden, help: browserHelp(hidden)) {
                 state.update { config in
                     if hidden {
                         config.hiddenBrowsers.remove(browser.bundleId)
@@ -102,6 +111,31 @@ struct TargetsTab: View {
                 }
             }
         }
+    }
+
+    /// The browser itself, without a space or profile. Hiding it keeps the
+    /// browser's spaces and profiles in the picker.
+    private func plainRow(_ target: Target) -> some View {
+        let hidden = state.config.hiddenTargets.contains(target.id)
+        return HStack(spacing: 8) {
+            Text(Self.defaultIcon(nil))
+            Text("\(target.browser.name) itself")
+                .foregroundStyle(hidden ? .secondary : .primary)
+            Text("no space or profile")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            visibilityButton(hidden: hidden) {
+                state.update { config in
+                    if hidden {
+                        config.hiddenTargets.remove(target.id)
+                    } else {
+                        config.hiddenTargets.insert(target.id)
+                    }
+                }
+            }
+        }
+        .padding(.leading, 28)
     }
 
     private func profileRow(_ target: Target) -> some View {
@@ -134,14 +168,20 @@ struct TargetsTab: View {
         .padding(.leading, 28)
     }
 
-    private func visibilityButton(hidden: Bool, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    private func visibilityButton(hidden: Bool, disabled: Bool = false, help: String? = nil,
+                                  action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: hidden ? "eye.slash" : "eye")
                 .frame(width: 18)
         }
         .buttonStyle(.borderless)
         .disabled(disabled)
-        .help(hidden ? "Hidden from the picker. Click to show." : "Shown in the picker. Click to hide.")
+        .help(help ?? (hidden ? "Hidden from the picker. Click to show." : "Shown in the picker. Click to hide."))
+    }
+
+    private func browserHelp(_ hidden: Bool) -> String {
+        hidden ? "The browser and all its spaces and profiles are hidden. Click to show."
+            : "Hide the browser together with all its spaces and profiles."
     }
 
     private static func kindLabel(_ kind: ProfileKind?) -> String {
